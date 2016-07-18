@@ -25,9 +25,11 @@ module Fog
         attribute :encryption_key,      :aliases => 'x-amz-server-side-encryption-customer-key'
         attribute :version,             :aliases => 'x-amz-version-id'
 
+        attribute :multipart_chunk_size, :aliases => 'multipart-chunk-size'
+
         # @note Chunk size to use for multipart uploads.
         #     Use small chunk sizes to minimize memory. E.g. 5242880 = 5mb
-        attr_accessor :multipart_chunk_size
+        attr_accessor :attr_multipart_chunk_size
 
         def acl
           requires :directory, :key
@@ -187,6 +189,9 @@ module Fog
         # @option options [String] expires sets number of seconds before AWS Object expires.
         # @option options [String] storage_class sets x-amz-storage-class HTTP header. Defaults to 'STANDARD'. Or, 'REDUCED_REDUNDANCY'
         # @option options [String] encryption sets HTTP encryption header. Set to 'AES256' to encrypt files at rest on S3
+
+        # @option options [String] multipart_chunk_size Chunk size to use for multipart uploads.
+
         # @return [Boolean] true if no errors
         #
         def save(options = {})
@@ -205,7 +210,11 @@ module Fog
           options['x-amz-storage-class'] = storage_class if storage_class
           options.merge!(encryption_headers)
 
-          if multipart_chunk_size && body.respond_to?(:read)
+          options['multipart-chunk-size'] = multipart_chunk_size if multipart_chunk_size
+
+          attr_multipart_chunk_size = options['multipart-chunk-size']
+
+          if attr_multipart_chunk_size && body.respond_to?(:read)
             data = multipart_save(options)
             merge_attributes(data.body)
           else
@@ -264,7 +273,7 @@ module Fog
           if body.respond_to?(:rewind)
             body.rewind  rescue nil
           end
-          while (chunk = body.read(multipart_chunk_size)) do
+          while (chunk = body.read(attr_multipart_chunk_size)) do
             part_upload = service.upload_part(directory.key, key, upload_id, part_tags.size + 1, chunk, part_headers(chunk, options))
             part_tags << part_upload.headers["ETag"]
           end
